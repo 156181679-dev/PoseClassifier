@@ -1,15 +1,24 @@
 
 *.pyc
 /__pycache__
+__pycache__/
 __pycache__/datapro.cpython-310.pyc
 *.mp4
+*.mov
+*.MOV
+*.avi
+*.mkv
 *.csv
+*.whl
 /res/
 /pose9/
 /vid/
+/uploads/
+/static/results/
 /训练数据集/
 /分别组合/
 dataset/video_annotations.json
 /.idea
 data/.DS_Store
 dataset/readme.md
+yolov8*.pt
