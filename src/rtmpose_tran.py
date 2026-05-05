@@ -1,15 +1,57 @@
+from pathlib import Path
+
 import cv2
 import numpy as np
 from rtmlib import Body
 import torch  # 不能删除，删了之后 onnxruntime 无法使用 GPU 推理
+import onnxruntime as ort
+
+# 猴子补丁：在ONNX Runtime加载模型前强制转换所有路径为字符串
+original_inference_session = ort.InferenceSession
+
+def patched_inference_session(path_or_bytes, *args, **kwargs):
+    # 打印调试信息，查看传入的路径类型
+    # print(f"ONNX Runtime接收的路径类型: {type(path_or_bytes)}")
+    # print(f"ONNX Runtime接收的路径值: {path_or_bytes}")
+
+    # 强制转换为字符串
+    if isinstance(path_or_bytes, Path):
+        path_or_bytes = str(path_or_bytes)
+
+    # 打印转换后的路径类型
+    # print(f"转换后的路径类型: {type(path_or_bytes)}")
+
+    return original_inference_session(path_or_bytes, *args, **kwargs)
+
+ort.InferenceSession = patched_inference_session
+
+RTMO_MODEL_NAME = "rtmo-s_8xb32-600e_body7-640x640-dac2bf74_20231211.onnx"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+repo_model_path = REPO_ROOT / "model" / RTMO_MODEL_NAME
+cache_model_path = Path.home() / ".cache" / "rtmlib" / "hub" / "checkpoints" / RTMO_MODEL_NAME
+model_path = str(repo_model_path if repo_model_path.exists() else cache_model_path)
+
+
+def _select_rtmpose_device():
+    available_providers = set(ort.get_available_providers())
+    cuda_ready = (
+        torch.cuda.is_available() and "CUDAExecutionProvider" in available_providers
+    )
+    device = "cuda" if cuda_ready else "cpu"
+    print(
+        f"RTMPose device = {device}; "
+        f"torch.cuda.is_available()={torch.cuda.is_available()}, "
+        f"onnxruntime providers={sorted(available_providers)}"
+    )
+    return device
 
 # 初始化Body模型
 body = Body(
-    pose="rtmo",  # 选择RTMO模型，它专注于身体姿态估计
+    pose=model_path,  # 选择RTMO模型，它专注于身体姿态估计
     to_openpose=False,  # True为OpenPose风格，False为MMPose风格
     mode="lightweight",  # 可以选择 'balanced', 'performance', 'lightweight' 来调整性能和速度
     backend="onnxruntime",  # opencv, onnxruntime, openvino
-    device="cuda",  # cpu, cuda, mps
+    device=_select_rtmpose_device(),  # cpu, cuda, mps
 )
 
 # 姿态点之间的连接关系
