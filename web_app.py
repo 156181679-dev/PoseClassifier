@@ -6,7 +6,6 @@ import shutil
 import cv2  # 新增：用于处理图像可视化
 import torch
 import numpy as np
-import ollama
 import imageio_ffmpeg
 from flask import Flask, request, render_template, jsonify, send_from_directory, abort
 from werkzeug.utils import secure_filename
@@ -16,6 +15,7 @@ from src.rtmpose_tran import RTM_Pose_Tran
 from src.datapro import PreProcess
 from src.score import Score
 from src.model import ST_GCN
+from src.local_llm import chat_with_ollama_model
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'uploads'
@@ -197,7 +197,7 @@ def generate_feedback(action_id, score, heart_rate=None):
 [改进建议] 具体的改进建议
 [鼓励话语] 一句鼓励的话"""
     try:
-        response = ollama.chat(model='deepseek-r1:8b', messages=[{'role': 'user', 'content': prompt}])
+        response = chat_with_ollama_model([{'role': 'user', 'content': prompt}])
         full_text = response['message']['content']
         print(f"[DEBUG] ollama raw: {full_text[:200]}")
 
@@ -220,7 +220,7 @@ def generate_feedback(action_id, score, heart_rate=None):
         }
     except Exception as e:
         print(f"[ERROR] generate_feedback failed: {e}")
-        return {'raw': str(e), 'evaluation': f"Ollama 未就绪: {e}", 'analysis': "", 'hr_eval': "", 'suggestion': "",
+        return {'raw': str(e), 'evaluation': f"Gemma 反馈未就绪: {e}", 'analysis': "", 'hr_eval': "", 'suggestion': "",
                 'encouragement': ""}
 
 
@@ -348,13 +348,13 @@ def chat():
                 {'role': 'system', 'content': f'你是一个健身教练。{bg_info} 请回答用户问题。'}]
 
         session_histories[session_id].append({'role': 'user', 'content': user_msg})
-        response = ollama.chat(model='deepseek-r1:8b', messages=session_histories[session_id])
+        response = chat_with_ollama_model(session_histories[session_id])
         reply = response['message']['content']
         session_histories[session_id].append({'role': 'assistant', 'content': reply})
 
         return jsonify({'reply': reply})
     except Exception as e:
-        return jsonify({'reply': '系统繁忙，请重试'}), 500
+        return jsonify({'reply': f'Gemma 调用失败: {e}'}), 500
 
 
 if __name__ == '__main__':
