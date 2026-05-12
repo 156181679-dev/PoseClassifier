@@ -267,15 +267,30 @@ def serve_video(filename):
     )
 
 @app.route('/')
+def landing():
+    return render_template('landing.html')
+
+
+@app.route('/practice')
 def index():
-    return render_template('index.html', result=None)
+    return render_template('index.html', result=None, page_mode='practice')
+
+
+@app.route('/assessment')
+def assessment():
+    return render_template('index.html', result=None, page_mode='assessment')
+
+
+@app.route('/coach')
+def coach():
+    return render_template('coach.html', radar_data=[0, 0, 0, 0, 0], records=[])
 
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'video' not in request.files: return render_template('index.html', error="未选择文件")
+    if 'video' not in request.files: return render_template('index.html', error="Please choose a video file.", page_mode='assessment')
     file = request.files['video']
-    if file.filename == '': return render_template('index.html', error="文件名为空")
+    if file.filename == '': return render_template('index.html', error="The selected file has no name.", page_mode='assessment')
 
     filename = secure_filename(file.filename)
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -285,7 +300,7 @@ def upload_file():
         start_time = time.time()
         good_vid, keypoints = RTM_Pose_Tran(filepath, display_pose=False)
 
-        if not good_vid: return render_template('index.html', error="无法提取骨骼关键点")
+        if not good_vid: return render_template('index.html', error="Unable to extract pose keypoints from this video.", page_mode='assessment')
 
         pp_keypoints = PreProcess(keypoints)
         action, conf = model.predict(pp_keypoints)
@@ -323,14 +338,14 @@ def upload_file():
         except:
             pass
 
-        return render_template('index.html', result=result_data)
+        return render_template('index.html', result=result_data, page_mode='assessment')
 
     except Exception as e:
         try:
             os.remove(filepath)
         except:
             pass
-        return render_template('index.html', error=f"处理发生错误: {str(e)}")
+        return render_template('index.html', error=f"Processing failed: {str(e)}", page_mode='assessment')
 
 
 @app.route('/chat', methods=['POST'])
